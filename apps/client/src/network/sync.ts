@@ -150,7 +150,7 @@ export class WorldSync {
   getRecentEvents(count: number = 10): WorldEvent[] {
     const length = this.events.length;
     const start = Math.max(0, length - count);
-    return this.events.slice(start, length).toArray();
+    return this.events.slice(start, length);
   }
 
   // For server-initiated updates

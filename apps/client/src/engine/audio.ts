@@ -372,7 +372,7 @@ export class AudioManager {
     source.start();
   }
 
-  updateListener(position: THREE.Vector3, direction: THREE.Vector3): void {
+  updateListener(_position: THREE.Vector3, _direction: THREE.Vector3): void {
     // Listener is attached to camera, updates automatically
   }
 
@@ -471,7 +471,10 @@ export class AudioManager {
   ): AudioBuffer | null {
     if (!this.context) return null;
     const buffer = this.context.createBuffer(1, pcmData.length, sampleRate);
-    buffer.copyToChannel(pcmData, 0);
+    // Create a new Float32Array backed by a regular ArrayBuffer
+    const channelData = new Float32Array(pcmData.length);
+    channelData.set(pcmData);
+    buffer.copyToChannel(channelData, 0);
     return buffer;
   }
 

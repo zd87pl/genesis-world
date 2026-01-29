@@ -30,7 +30,6 @@ export class UIManager {
   // Input state
   private interactPressed = false;
   private escapePressed = false;
-  private playerCount = 1;
 
   constructor() {
     this.loadingScreen = document.getElementById('loading-screen')!;
@@ -314,7 +313,6 @@ export class UIManager {
   }
 
   setPlayerCount(count: number): void {
-    this.playerCount = count;
     if (this.hudContainer) {
       const el = this.hudContainer.querySelector('#hud-players');
       if (el) {

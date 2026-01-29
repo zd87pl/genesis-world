@@ -5,6 +5,7 @@ import type {
   PlayerState,
   Vector3,
   Quaternion,
+  NPCMood,
 } from '@genesis/shared';
 import { WorldStateManager } from '../services/sync/state-manager.js';
 import { NPCManager } from '../services/npc/manager.js';
@@ -121,15 +122,46 @@ export function setupSocketHandlers(
         if (updatedNpc) {
           updatedNpc.currentAction = 'talking';
           updatedNpc.targetPlayerId = playerId;
-          updatedNpc.mood = emotion as any;
+          updatedNpc.mood = toValidMood(emotion);
           worldState.updateNPC(updatedNpc);
           io.emit('npc:updated', updatedNpc);
         }
       });
     });
 
-    // Handle NPC message
-    socket.on('npc:message', (data: { npcId: string; text: string }) => {
+    // Handle NPC message - uses AI-driven dialogue when available
+    socket.on('npc:message', async (data: { npcId: string; text: string }) => {
+      // Try AI-driven dialogue first
+      const aiStatus = gameMaster.getAIStatus();
+
+      if (aiStatus.enabled) {
+        try {
+          const response = await gameMaster.generateNPCDialogue(
+            playerId,
+            data.npcId,
+            data.text
+          );
+
+          socket.emit('npc:speak', {
+            npcId: data.npcId,
+            text: response.text,
+          });
+
+          // Update NPC mood based on response emotion
+          const npc = worldState.getNPC(data.npcId);
+          if (npc && response.emotion) {
+            npc.mood = toValidMood(response.emotion);
+            worldState.updateNPC(npc);
+            io.emit('npc:updated', npc);
+          }
+
+          return;
+        } catch (error) {
+          console.error('AI dialogue failed, falling back:', error);
+        }
+      }
+
+      // Fallback to basic NPC manager
       npcManager.sendMessage(data.npcId, playerId, data.text);
     });
 
@@ -153,7 +185,13 @@ export function setupSocketHandlers(
         socket.emit('chunk:ready', chunk);
       } else {
         socket.emit('chunk:generating', chunkId);
-        gameMaster.requestChunkGeneration(chunkId, playerId);
+        gameMaster.requestChunkGeneration(chunkId, playerId).catch((error) => {
+          console.error(`Failed to generate chunk ${chunkId}:`, error);
+          socket.emit('error', {
+            code: 'CHUNK_GENERATION_FAILED',
+            message: `Failed to generate chunk ${chunkId}`,
+          });
+        });
       }
     });
 
@@ -178,4 +216,23 @@ function calculateDistance(a: Vector3, b: Vector3): number {
   const dy = b.y - a.y;
   const dz = b.z - a.z;
   return Math.sqrt(dx * dx + dy * dy + dz * dz);
+}
+
+const VALID_MOODS: NPCMood[] = ['neutral', 'happy', 'curious', 'concerned'];
+
+function toValidMood(emotion: string): NPCMood {
+  const moodMap: Record<string, NPCMood> = {
+    happy: 'happy',
+    sad: 'concerned',
+    curious: 'curious',
+    concerned: 'concerned',
+    neutral: 'neutral',
+    friendly: 'happy',
+    thoughtful: 'curious',
+  };
+  const mapped = moodMap[emotion];
+  if (mapped && VALID_MOODS.includes(mapped)) {
+    return mapped;
+  }
+  return 'neutral';
 }

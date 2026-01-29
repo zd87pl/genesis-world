@@ -1,15 +1,18 @@
-import type { PlayerState, WorldChunk, NPCState } from '@genesis/shared';
+import type { PlayerState, WorldChunk, NPCState, WorldEvent } from '@genesis/shared';
 import { GM_TICK_INTERVAL, GM_GENERATION_LOOKAHEAD, CHUNK_SIZE } from '@genesis/shared';
 import { positionToChunkId, getAdjacentChunkIds, determineBiome } from '@genesis/shared/world';
 import { WorldStateManager } from '../sync/state-manager.js';
 import { NPCManager } from '../npc/manager.js';
 import { config } from '../../config.js';
+import { AIGameMaster, type GMDecision } from './narrative-engine.js';
+import { AIDirector, type NPCDialogueContext, type NPCDialogueResponse } from './ai-director.js';
 
 interface PlayerMemory {
   discoveries: string[];
   visitedChunks: string[];
   npcInteractions: Map<string, number>;
   lastPosition: { x: number; z: number };
+  conversationHistory: Map<string, { playerText: string; npcResponse: string }[]>;
 }
 
 export class GameMasterOrchestrator {
@@ -19,9 +22,24 @@ export class GameMasterOrchestrator {
   private tickInterval: NodeJS.Timeout | null = null;
   private pendingGenerations: Set<string> = new Set();
 
+  // AI components (only initialized with API key)
+  private aiGameMaster: AIGameMaster | null = null;
+  private aiDirector: AIDirector | null = null;
+  private useAI: boolean = false;
+
   constructor(worldState: WorldStateManager, npcManager: NPCManager) {
     this.worldState = worldState;
     this.npcManager = npcManager;
+
+    // Initialize AI components if API key is available
+    if (config.anthropicApiKey) {
+      this.aiGameMaster = new AIGameMaster(config.anthropicApiKey);
+      this.aiDirector = new AIDirector(config.anthropicApiKey);
+      this.useAI = true;
+      console.log('AI Game Master and Director initialized');
+    } else {
+      console.log('Running without AI (no API key) - using procedural generation');
+    }
   }
 
   start(): void {
@@ -53,8 +71,96 @@ export class GameMasterOrchestrator {
       await this.checkWorldExpansion(player);
     }
 
+    // Use AI Game Master for narrative decisions when available
+    if (this.useAI && this.aiGameMaster && players.length > 0) {
+      try {
+        const worldState = {
+          players,
+          npcs: this.worldState.getAllNPCs(),
+          chunks: this.worldState.getAllChunks(),
+          recentEvents: this.worldState.getRecentEvents(20),
+        };
+
+        const decisions = await this.aiGameMaster.tick(worldState);
+
+        // Execute AI decisions
+        for (const decision of decisions) {
+          await this.executeGMDecision(decision);
+        }
+      } catch (error) {
+        console.error('AI Game Master tick failed:', error);
+      }
+    }
+
     // Global world events (future: weather, day/night, emergent events)
     await this.processGlobalEvents();
+  }
+
+  /**
+   * Execute a decision made by the AI Game Master
+   */
+  private async executeGMDecision(decision: GMDecision): Promise<void> {
+    switch (decision.type) {
+      case 'trigger_event': {
+        const action = decision.action as { eventType: string; description: string; affectedArea: string };
+        this.worldState.addEvent({
+          id: `gm_event_${Date.now()}`,
+          type: 'world_change',
+          data: {
+            gmEventType: action.eventType,
+            description: action.description,
+            area: action.affectedArea,
+          },
+          timestamp: Date.now(),
+        });
+        break;
+      }
+
+      case 'npc_action': {
+        const action = decision.action as { npcId: string; action: 'idle' | 'walking' | 'talking' | 'working' };
+        const npc = this.worldState.getNPC(action.npcId);
+        if (npc) {
+          this.worldState.updateNPCPartial(action.npcId, {
+            currentAction: action.action,
+          });
+        }
+        break;
+      }
+
+      case 'reveal_secret': {
+        const action = decision.action as { secretId: string };
+        console.log(`[GM] Revealing secret: ${action.secretId}`);
+        // Secret reveals are handled through NPC dialogue context
+        break;
+      }
+
+      case 'advance_narrative': {
+        const action = decision.action as { narrativeId: string };
+        console.log(`[GM] Advancing narrative: ${action.narrativeId}`);
+        break;
+      }
+
+      case 'create_tension': {
+        const action = decision.action as { source: string };
+        console.log(`[GM] Creating tension: ${action.source}`);
+        break;
+      }
+
+      case 'provide_relief': {
+        const action = decision.action as { type: string };
+        console.log(`[GM] Providing relief: ${action.type}`);
+        break;
+      }
+
+      case 'generate_content': {
+        const action = decision.action as { chunkId: string; theme: string };
+        console.log(`[GM] Generating content for ${action.chunkId}: ${action.theme}`);
+        break;
+      }
+
+      default:
+        console.log(`[GM] Unknown decision type: ${(decision as GMDecision).type}`);
+    }
   }
 
   private updatePlayerMemory(player: PlayerState): void {
@@ -66,6 +172,7 @@ export class GameMasterOrchestrator {
         visitedChunks: [],
         npcInteractions: new Map(),
         lastPosition: { x: player.position.x, z: player.position.z },
+        conversationHistory: new Map(),
       };
       this.playerMemories.set(player.id, memory);
     }
@@ -226,6 +333,9 @@ Respond with JSON only:
         ],
       });
 
+      if (!response.content || response.content.length === 0) {
+        throw new Error('Empty response from AI');
+      }
       const content = response.content[0];
       if (content.type !== 'text') {
         throw new Error('Unexpected response type');
@@ -399,6 +509,168 @@ ${recentEvents.map((e) => `- ${e.type}: ${JSON.stringify(e.data)}`).join('\n')}
   private async processGlobalEvents(): Promise<void> {
     // Future: weather changes, day/night cycle, emergent events
     // For PoC, this is a placeholder
+  }
+
+  /**
+   * AI-driven NPC dialogue - the heart of dynamic storytelling
+   */
+  async generateNPCDialogue(
+    playerId: string,
+    npcId: string,
+    playerMessage: string
+  ): Promise<NPCDialogueResponse> {
+    const npc = this.worldState.getNPC(npcId);
+    const player = this.worldState.getPlayer(playerId);
+
+    if (!npc || !player) {
+      return {
+        text: '...',
+        emotion: 'neutral',
+        action: null,
+      };
+    }
+
+    // Get player memory for conversation history
+    let memory = this.playerMemories.get(playerId);
+    if (!memory) {
+      memory = {
+        discoveries: [],
+        visitedChunks: [],
+        npcInteractions: new Map(),
+        lastPosition: { x: player.position.x, z: player.position.z },
+        conversationHistory: new Map(),
+      };
+      this.playerMemories.set(playerId, memory);
+    }
+
+    // Get conversation history for this NPC
+    let history = memory.conversationHistory.get(npcId) || [];
+
+    // Use AI Director when available
+    if (this.useAI && this.aiDirector && this.aiGameMaster) {
+      try {
+        // Get narrative context from Game Master
+        const narrativeContext = this.aiGameMaster.getNPCContext(npcId, playerId);
+
+        // Build dialogue context
+        const dialogueContext: NPCDialogueContext = {
+          relationship: narrativeContext.relationship,
+          previousInteractions: narrativeContext.previousInteractions.map((i) => ({
+            topics: i.topicsDiscussed,
+            timestamp: i.timestamp,
+          })),
+          secrets: narrativeContext.secretsToHint,
+          activeNarratives: narrativeContext.relevantNarratives,
+          conversationHistory: history,
+        };
+
+        // Generate AI response
+        const response = await this.aiDirector.generateNPCDialogue(
+          npc,
+          playerMessage,
+          dialogueContext
+        );
+
+        // Update conversation history
+        history.push({
+          playerText: playerMessage,
+          npcResponse: response.text,
+        });
+        memory.conversationHistory.set(npcId, history.slice(-10)); // Keep last 10 exchanges
+
+        // Track interaction for narrative purposes
+        const interactions = memory.npcInteractions.get(npcId) || 0;
+        memory.npcInteractions.set(npcId, interactions + 1);
+
+        return response;
+      } catch (error) {
+        console.error('AI dialogue generation failed:', error);
+        // Fall through to fallback
+      }
+    }
+
+    // Fallback: Use simple pattern-based responses
+    return this.generateFallbackDialogue(npc, playerMessage);
+  }
+
+  /**
+   * Fallback dialogue when AI is not available
+   */
+  private generateFallbackDialogue(npc: NPCState, message: string): NPCDialogueResponse {
+    const lower = message.toLowerCase();
+
+    // Simple keyword matching
+    if (lower.includes('hello') || lower.includes('hi')) {
+      return {
+        text: `Greetings, traveler. I am ${npc.name}.`,
+        emotion: 'friendly',
+        action: null,
+      };
+    }
+
+    if (lower.includes('bye') || lower.includes('farewell')) {
+      return {
+        text: 'Safe travels. May we meet again.',
+        emotion: 'neutral',
+        action: null,
+      };
+    }
+
+    if (lower.includes('help') || lower.includes('what')) {
+      return {
+        text: 'Explore the land. Speak to those you meet. The world reveals its secrets to the curious.',
+        emotion: 'thoughtful',
+        action: null,
+      };
+    }
+
+    // Default response based on archetype
+    const archetypeResponses: Record<string, string> = {
+      sage: 'The answers you seek lie within, traveler. Look deeper.',
+      wanderer: "There's always another road to travel. That's what makes it interesting!",
+      guard: 'Stay vigilant. These lands are not always safe.',
+      merchant: 'Looking for something specific? I might have what you need.',
+      quest_giver: 'The world needs heroes. Perhaps you could help?',
+      mysterious: '...some questions have no answers. Not yet.',
+    };
+
+    return {
+      text: archetypeResponses[npc.archetype || 'wanderer'] || 'Hmm, interesting.',
+      emotion: 'neutral',
+      action: null,
+    };
+  }
+
+  /**
+   * Generate world event narration
+   */
+  async narrateEvent(event: WorldEvent): Promise<string> {
+    if (this.useAI && this.aiDirector) {
+      try {
+        return await this.aiDirector.narrateWorldEvent({
+          type: event.type,
+          description: JSON.stringify(event.data),
+          context: 'A significant event occurs in the world.',
+          location: (event.data?.area as string) || 'the land',
+        });
+      } catch (error) {
+        console.error('Event narration failed:', error);
+      }
+    }
+
+    // Fallback narration
+    return `Something stirs in the world...`;
+  }
+
+  /**
+   * Get AI status for debugging/display
+   */
+  getAIStatus(): { enabled: boolean; gameMaster: boolean; director: boolean } {
+    return {
+      enabled: this.useAI,
+      gameMaster: this.aiGameMaster !== null,
+      director: this.aiDirector !== null,
+    };
   }
 
   private getChunksInRadius(centerChunkId: string, radius: number): string[] {

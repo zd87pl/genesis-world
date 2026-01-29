@@ -75,6 +75,18 @@ async function main() {
 
     console.log(`Server running on http://localhost:${config.port}`);
     console.log(`Socket.IO ready on ws://localhost:${config.port}`);
+
+    // Report AI status
+    const aiStatus = gameMaster.getAIStatus();
+    if (aiStatus.enabled) {
+      console.log('AI Game Master: ENABLED');
+      console.log('  - Narrative Engine: Active');
+      console.log('  - AI Director: Active');
+      console.log('  - NPC Conversations: AI-driven');
+    } else {
+      console.log('AI Game Master: DISABLED (no API key)');
+      console.log('  - Using procedural generation and template responses');
+    }
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);
@@ -84,6 +96,7 @@ async function main() {
   const shutdown = async () => {
     console.log('Shutting down...');
     gameMaster.stop();
+    npcManager.dispose(); // Clean up NPC behavior timers
     io.close();
     await fastify.close();
     process.exit(0);
