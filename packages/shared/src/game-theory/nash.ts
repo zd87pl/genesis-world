@@ -156,6 +156,10 @@ function calculateExpectedPayoffs(
  * Sample an action from a probability distribution
  */
 export function sampleFromStrategy<T>(strategy: Map<T, number>): T {
+  if (strategy.size === 0) {
+    throw new Error('Cannot sample from empty strategy');
+  }
+
   const rand = Math.random();
   let cumulative = 0;
 
@@ -166,6 +170,6 @@ export function sampleFromStrategy<T>(strategy: Map<T, number>): T {
     }
   }
 
-  // Fallback to first action
-  return strategy.keys().next().value;
+  // Fallback to first action (guaranteed to exist due to size check)
+  return strategy.keys().next().value as T;
 }

@@ -11,18 +11,22 @@ import { WorldStateManager } from './services/sync/state-manager.js';
 import { NPCManager } from './services/npc/manager.js';
 
 async function main() {
-  // Create Fastify instance
+  // Create Fastify instance with conditional pretty logging
+  const isDev = process.env.NODE_ENV !== 'production';
+
   const fastify = Fastify({
-    logger: {
-      level: config.logLevel,
-      transport: {
-        target: 'pino-pretty',
-        options: {
-          translateTime: 'HH:MM:ss Z',
-          ignore: 'pid,hostname',
-        },
-      },
-    },
+    logger: isDev
+      ? {
+          level: config.logLevel,
+          transport: {
+            target: 'pino-pretty',
+            options: {
+              translateTime: 'HH:MM:ss Z',
+              ignore: 'pid,hostname',
+            },
+          },
+        }
+      : { level: config.logLevel },
   });
 
   // Register plugins
