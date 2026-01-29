@@ -1,4 +1,4 @@
-import { CHUNK_SIZE, CHUNK_LOAD_DISTANCE, CHUNK_UNLOAD_DISTANCE } from '@genesis/shared';
+import { CHUNK_LOAD_DISTANCE, CHUNK_UNLOAD_DISTANCE } from '@genesis/shared';
 import { positionToChunkId, getChunksInRadius, chunkDistance } from '@genesis/shared/world';
 import type { Vector3 } from '@genesis/shared';
 

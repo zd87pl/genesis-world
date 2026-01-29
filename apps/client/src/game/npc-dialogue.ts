@@ -312,7 +312,7 @@ export class NPCDialogueSystem {
     }
   }
 
-  private pickResponse(responses: string[], topic: string): string {
+  private pickResponse(responses: string[], _topic: string): string {
     // Try to avoid repeating the same response
     if (this.currentDialogue) {
       const usedResponses = this.currentDialogue.messages

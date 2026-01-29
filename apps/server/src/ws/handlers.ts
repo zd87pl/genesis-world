@@ -128,8 +128,48 @@ export function setupSocketHandlers(
       });
     });
 
-    // Handle NPC message
-    socket.on('npc:message', (data: { npcId: string; text: string }) => {
+    // Handle NPC message - uses AI-driven dialogue when available
+    socket.on('npc:message', async (data: { npcId: string; text: string }) => {
+      // Try AI-driven dialogue first
+      const aiStatus = gameMaster.getAIStatus();
+
+      if (aiStatus.enabled) {
+        try {
+          const response = await gameMaster.generateNPCDialogue(
+            playerId,
+            data.npcId,
+            data.text
+          );
+
+          socket.emit('npc:speak', {
+            npcId: data.npcId,
+            text: response.text,
+          });
+
+          // Update NPC mood based on response emotion
+          const npc = worldState.getNPC(data.npcId);
+          if (npc && response.emotion) {
+            const moodMap: Record<string, string> = {
+              happy: 'happy',
+              sad: 'concerned',
+              curious: 'curious',
+              concerned: 'concerned',
+              neutral: 'neutral',
+              friendly: 'happy',
+              thoughtful: 'curious',
+            };
+            npc.mood = (moodMap[response.emotion] || 'neutral') as any;
+            worldState.updateNPC(npc);
+            io.emit('npc:updated', npc);
+          }
+
+          return;
+        } catch (error) {
+          console.error('AI dialogue failed, falling back:', error);
+        }
+      }
+
+      // Fallback to basic NPC manager
       npcManager.sendMessage(data.npcId, playerId, data.text);
     });
 

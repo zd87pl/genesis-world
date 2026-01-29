@@ -22,7 +22,7 @@ export interface NPCState {
 
 export type NPCAction = 'idle' | 'walking' | 'talking' | 'working';
 export type NPCMood = 'neutral' | 'happy' | 'curious' | 'concerned';
-export type NPCArchetype = 'merchant' | 'guard' | 'wanderer' | 'quest_giver';
+export type NPCArchetype = 'merchant' | 'guard' | 'wanderer' | 'quest_giver' | 'sage' | 'mysterious';
 
 // World Chunk
 export interface WorldChunk {

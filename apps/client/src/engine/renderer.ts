@@ -785,8 +785,11 @@ export class WorldRenderer {
       const indicator = group.getObjectByName('interaction-indicator');
       if (indicator) {
         indicator.rotation.z = time;
-        (indicator as THREE.Mesh).material.opacity =
-          0.4 + Math.sin(time * 2) * 0.2;
+        const mesh = indicator as THREE.Mesh;
+        const material = mesh.material;
+        if (!Array.isArray(material) && 'opacity' in material) {
+          material.opacity = 0.4 + Math.sin(time * 2) * 0.2;
+        }
       }
     }
 

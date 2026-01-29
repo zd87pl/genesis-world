@@ -41,8 +41,10 @@ export interface ConversationMessage {
 }
 
 // Three.js type augmentations
+import type { WebGLRenderer as THREE_WebGLRenderer } from 'three';
+
 declare module 'three' {
-  interface WebGPURenderer extends WebGLRenderer {
+  interface WebGPURenderer extends THREE_WebGLRenderer {
     // WebGPU-specific methods if needed
   }
 }

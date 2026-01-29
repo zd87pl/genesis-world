@@ -95,7 +95,7 @@ export class VoiceCapture {
     if (this.isSpeaking) {
       // Convert Float32Array to Int16Array for transmission
       const int16Data = this.float32ToInt16(inputData);
-      this.callbacks.onAudioChunk(int16Data.buffer);
+      this.callbacks.onAudioChunk(int16Data.buffer as ArrayBuffer);
     }
   }
 

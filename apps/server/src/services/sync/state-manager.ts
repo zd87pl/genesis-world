@@ -123,6 +123,18 @@ export class WorldStateManager {
     return chunk.npcs.map((id) => this.npcs.get(id)).filter(Boolean) as NPCState[];
   }
 
+  getAllNPCs(): NPCState[] {
+    return this.getNPCs();
+  }
+
+  updateNPCPartial(npcId: string, updates: Partial<NPCState>): void {
+    const npc = this.npcs.get(npcId);
+    if (npc) {
+      Object.assign(npc, updates);
+      this.npcs.set(npcId, npc);
+    }
+  }
+
   // Chunk methods
   addChunk(chunk: WorldChunk): void {
     this.chunks.set(chunk.id, chunk);
@@ -159,6 +171,10 @@ export class WorldStateManager {
 
   getLoadedChunks(): string[] {
     return Array.from(this.chunks.keys());
+  }
+
+  getAllChunks(): Map<string, WorldChunk> {
+    return new Map(this.chunks);
   }
 
   // Event methods
