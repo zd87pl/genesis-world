@@ -1,0 +1,27 @@
+{
+  "name": "@genesis/client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "lint": "eslint src --ext ts,tsx",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "three": "^0.162.0",
+    "@mkkellogg/gaussian-splats-3d": "^0.4.0",
+    "yjs": "^13.6.0",
+    "y-webrtc": "^10.3.0",
+    "y-indexeddb": "^9.0.0",
+    "socket.io-client": "^4.7.0",
+    "@genesis/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "vite": "^5.2.0",
+    "typescript": "^5.4.0",
+    "@types/three": "^0.162.0"
+  }
+}
