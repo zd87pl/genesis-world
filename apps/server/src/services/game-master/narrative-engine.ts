@@ -128,9 +128,49 @@ interface GlobalEvent {
 }
 
 /**
+ * GM Decision Actions - Type-safe action payloads
+ */
+interface TriggerEventAction {
+  eventType: string;
+  description: string;
+  affectedArea: string;
+}
+
+interface NPCActionPayload {
+  npcId: string;
+  action: 'idle' | 'walking' | 'talking' | 'working';
+}
+
+interface RevealSecretAction {
+  secretId: string;
+  revealedTo: string[];
+}
+
+interface AdvanceNarrativeAction {
+  narrativeId: string;
+  newPhase: string;
+}
+
+interface CreateTensionAction {
+  source: string;
+  intensity: number;
+}
+
+interface ProvideReliefAction {
+  type: string;
+  reward?: string;
+  emotional_beat?: string;
+}
+
+interface GenerateContentAction {
+  chunkId: string;
+  theme: string;
+}
+
+/**
  * GM Decision - What the AI decides to do
  */
-interface GMDecision {
+export interface GMDecision {
   type:
     | 'generate_content'
     | 'trigger_event'
@@ -141,7 +181,14 @@ interface GMDecision {
     | 'provide_relief';
   priority: number;
   reasoning: string;
-  action: any;
+  action:
+    | TriggerEventAction
+    | NPCActionPayload
+    | RevealSecretAction
+    | AdvanceNarrativeAction
+    | CreateTensionAction
+    | ProvideReliefAction
+    | GenerateContentAction;
 }
 
 /**
@@ -428,6 +475,7 @@ For provide_relief, action should include: { "type": "...", "reward": "...", "em
     });
 
     try {
+      if (!response.content || response.content.length === 0) return [];
       const content = response.content[0];
       if (content.type !== 'text') return [];
 
@@ -523,6 +571,9 @@ Respond with JSON:
     });
 
     try {
+      if (!response.content || response.content.length === 0) {
+        throw new Error('Empty response from AI');
+      }
       const content = response.content[0];
       if (content.type !== 'text') throw new Error('Unexpected response type');
 
@@ -711,6 +762,9 @@ Respond with JSON:
       ],
     });
 
+    if (!response.content || response.content.length === 0) {
+      return undefined;
+    }
     const content = response.content[0];
     return content.type === 'text' ? content.text : undefined;
   }
@@ -768,16 +822,31 @@ Respond with JSON:
    * Restore memory from persistence
    */
   deserializeMemory(data: string): void {
-    const parsed = JSON.parse(data);
-    this.memory = {
-      ...parsed,
-      npcMemories: new Map(Object.entries(parsed.npcMemories)),
-      playerProfiles: new Map(Object.entries(parsed.playerProfiles)),
-      factions: parsed.factions.map((f: any) => ({
-        ...f,
-        relationships: new Map(Object.entries(f.relationships)),
-      })),
-    };
+    try {
+      const parsed = JSON.parse(data);
+
+      // Validate required fields exist
+      if (!parsed || typeof parsed !== 'object') {
+        throw new Error('Invalid memory data: expected object');
+      }
+
+      this.memory = {
+        ...parsed,
+        npcMemories: new Map(
+          Object.entries(parsed.npcMemories || {})
+        ),
+        playerProfiles: new Map(
+          Object.entries(parsed.playerProfiles || {})
+        ),
+        factions: (parsed.factions || []).map((f: any) => ({
+          ...f,
+          relationships: new Map(Object.entries(f.relationships || {})),
+        })),
+      };
+    } catch (error) {
+      console.error('Failed to deserialize world memory:', error);
+      // Keep existing memory on failure rather than corrupting state
+    }
   }
 }
 

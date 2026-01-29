@@ -15,3 +15,5 @@ export type {
   NPCActionDecision,
   WorldEventInput,
 } from './ai-director.js';
+
+export type { GMDecision } from './narrative-engine.js';

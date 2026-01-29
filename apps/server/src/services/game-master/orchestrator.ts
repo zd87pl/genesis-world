@@ -4,7 +4,7 @@ import { positionToChunkId, getAdjacentChunkIds, determineBiome } from '@genesis
 import { WorldStateManager } from '../sync/state-manager.js';
 import { NPCManager } from '../npc/manager.js';
 import { config } from '../../config.js';
-import { AIGameMaster } from './narrative-engine.js';
+import { AIGameMaster, type GMDecision } from './narrative-engine.js';
 import { AIDirector, type NPCDialogueContext, type NPCDialogueResponse } from './ai-director.js';
 
 interface PlayerMemory {
@@ -99,49 +99,67 @@ export class GameMasterOrchestrator {
   /**
    * Execute a decision made by the AI Game Master
    */
-  private async executeGMDecision(decision: any): Promise<void> {
+  private async executeGMDecision(decision: GMDecision): Promise<void> {
     switch (decision.type) {
-      case 'trigger_event':
+      case 'trigger_event': {
+        const action = decision.action as { eventType: string; description: string; affectedArea: string };
         this.worldState.addEvent({
           id: `gm_event_${Date.now()}`,
           type: 'world_change',
           data: {
-            gmEventType: decision.action.eventType,
-            description: decision.action.description,
-            area: decision.action.affectedArea,
+            gmEventType: action.eventType,
+            description: action.description,
+            area: action.affectedArea,
           },
           timestamp: Date.now(),
         });
         break;
+      }
 
-      case 'npc_action':
-        const npc = this.worldState.getNPC(decision.action.npcId);
+      case 'npc_action': {
+        const action = decision.action as { npcId: string; action: 'idle' | 'walking' | 'talking' | 'working' };
+        const npc = this.worldState.getNPC(action.npcId);
         if (npc) {
-          this.worldState.updateNPCPartial(decision.action.npcId, {
-            currentAction: decision.action.action,
+          this.worldState.updateNPCPartial(action.npcId, {
+            currentAction: action.action,
           });
         }
         break;
+      }
 
-      case 'reveal_secret':
-        console.log(`[GM] Revealing secret: ${decision.action.secretId}`);
+      case 'reveal_secret': {
+        const action = decision.action as { secretId: string };
+        console.log(`[GM] Revealing secret: ${action.secretId}`);
         // Secret reveals are handled through NPC dialogue context
         break;
+      }
 
-      case 'advance_narrative':
-        console.log(`[GM] Advancing narrative: ${decision.action.narrativeId}`);
+      case 'advance_narrative': {
+        const action = decision.action as { narrativeId: string };
+        console.log(`[GM] Advancing narrative: ${action.narrativeId}`);
         break;
+      }
 
-      case 'create_tension':
-        console.log(`[GM] Creating tension: ${decision.action.source}`);
+      case 'create_tension': {
+        const action = decision.action as { source: string };
+        console.log(`[GM] Creating tension: ${action.source}`);
         break;
+      }
 
-      case 'provide_relief':
-        console.log(`[GM] Providing relief: ${decision.action.type}`);
+      case 'provide_relief': {
+        const action = decision.action as { type: string };
+        console.log(`[GM] Providing relief: ${action.type}`);
         break;
+      }
+
+      case 'generate_content': {
+        const action = decision.action as { chunkId: string; theme: string };
+        console.log(`[GM] Generating content for ${action.chunkId}: ${action.theme}`);
+        break;
+      }
 
       default:
-        console.log(`[GM] Unknown decision type: ${decision.type}`);
+        console.log(`[GM] Unknown decision type: ${(decision as GMDecision).type}`);
     }
   }
 
@@ -315,6 +333,9 @@ Respond with JSON only:
         ],
       });
 
+      if (!response.content || response.content.length === 0) {
+        throw new Error('Empty response from AI');
+      }
       const content = response.content[0];
       if (content.type !== 'text') {
         throw new Error('Unexpected response type');

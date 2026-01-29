@@ -197,6 +197,9 @@ Keep responses concise (1-3 sentences). Stay in character. Be helpful but myster
         })),
       });
 
+      if (!response.content || response.content.length === 0) {
+        return { text: 'Hmm, I seem to have lost my train of thought.', emotion: 'concerned' };
+      }
       const content = response.content[0];
       if (content.type === 'text') {
         // Detect emotion from response

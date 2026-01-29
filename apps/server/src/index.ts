@@ -96,6 +96,7 @@ async function main() {
   const shutdown = async () => {
     console.log('Shutting down...');
     gameMaster.stop();
+    npcManager.dispose(); // Clean up NPC behavior timers
     io.close();
     await fastify.close();
     process.exit(0);

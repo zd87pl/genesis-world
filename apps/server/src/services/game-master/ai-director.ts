@@ -37,6 +37,9 @@ export class AIDirector {
       ],
     });
 
+    if (!response.content || response.content.length === 0) {
+      return { text: "...", emotion: 'neutral', action: null };
+    }
     const content = response.content[0];
     if (content.type !== 'text') {
       return { text: "...", emotion: 'neutral', action: null };
@@ -205,6 +208,9 @@ Affected area: ${event.location}`,
       ],
     });
 
+    if (!response.content || response.content.length === 0) {
+      return 'Something stirs in the world...';
+    }
     const content = response.content[0];
     return content.type === 'text' ? content.text : 'Something stirs in the world...';
   }

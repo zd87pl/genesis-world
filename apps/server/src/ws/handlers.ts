@@ -5,6 +5,7 @@ import type {
   PlayerState,
   Vector3,
   Quaternion,
+  NPCMood,
 } from '@genesis/shared';
 import { WorldStateManager } from '../services/sync/state-manager.js';
 import { NPCManager } from '../services/npc/manager.js';
@@ -121,7 +122,7 @@ export function setupSocketHandlers(
         if (updatedNpc) {
           updatedNpc.currentAction = 'talking';
           updatedNpc.targetPlayerId = playerId;
-          updatedNpc.mood = emotion as any;
+          updatedNpc.mood = toValidMood(emotion);
           worldState.updateNPC(updatedNpc);
           io.emit('npc:updated', updatedNpc);
         }
@@ -149,16 +150,7 @@ export function setupSocketHandlers(
           // Update NPC mood based on response emotion
           const npc = worldState.getNPC(data.npcId);
           if (npc && response.emotion) {
-            const moodMap: Record<string, string> = {
-              happy: 'happy',
-              sad: 'concerned',
-              curious: 'curious',
-              concerned: 'concerned',
-              neutral: 'neutral',
-              friendly: 'happy',
-              thoughtful: 'curious',
-            };
-            npc.mood = (moodMap[response.emotion] || 'neutral') as any;
+            npc.mood = toValidMood(response.emotion);
             worldState.updateNPC(npc);
             io.emit('npc:updated', npc);
           }
@@ -193,7 +185,13 @@ export function setupSocketHandlers(
         socket.emit('chunk:ready', chunk);
       } else {
         socket.emit('chunk:generating', chunkId);
-        gameMaster.requestChunkGeneration(chunkId, playerId);
+        gameMaster.requestChunkGeneration(chunkId, playerId).catch((error) => {
+          console.error(`Failed to generate chunk ${chunkId}:`, error);
+          socket.emit('error', {
+            code: 'CHUNK_GENERATION_FAILED',
+            message: `Failed to generate chunk ${chunkId}`,
+          });
+        });
       }
     });
 
@@ -218,4 +216,23 @@ function calculateDistance(a: Vector3, b: Vector3): number {
   const dy = b.y - a.y;
   const dz = b.z - a.z;
   return Math.sqrt(dx * dx + dy * dy + dz * dz);
+}
+
+const VALID_MOODS: NPCMood[] = ['neutral', 'happy', 'curious', 'concerned'];
+
+function toValidMood(emotion: string): NPCMood {
+  const moodMap: Record<string, NPCMood> = {
+    happy: 'happy',
+    sad: 'concerned',
+    curious: 'curious',
+    concerned: 'concerned',
+    neutral: 'neutral',
+    friendly: 'happy',
+    thoughtful: 'curious',
+  };
+  const mapped = moodMap[emotion];
+  if (mapped && VALID_MOODS.includes(mapped)) {
+    return mapped;
+  }
+  return 'neutral';
 }
