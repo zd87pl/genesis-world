@@ -4,6 +4,7 @@
   "private": true,
   "description": "AI-Orchestrated Virtual World Platform",
   "scripts": {
+    "setup": "npx tsx scripts/setup.ts",
     "dev": "turbo run dev",
     "build": "turbo run build",
     "lint": "turbo run lint",
@@ -13,7 +14,9 @@
     "clean": "turbo run clean && rm -rf node_modules"
   },
   "devDependencies": {
+    "@types/node": "^20.11.0",
     "turbo": "^2.0.0",
+    "tsx": "^4.7.0",
     "typescript": "^5.4.0"
   },
   "packageManager": "pnpm@9.0.0",
