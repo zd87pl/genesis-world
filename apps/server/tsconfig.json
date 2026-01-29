@@ -5,10 +5,12 @@
     "rootDir": "./src",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
     "paths": {
       "@/*": ["./src/*"],
-      "@genesis/shared": ["../../packages/shared/src"],
-      "@genesis/shared/*": ["../../packages/shared/src/*"]
+      "@genesis/shared": ["../../packages/shared/dist"],
+      "@genesis/shared/*": ["../../packages/shared/dist/*"]
     }
   },
   "include": ["src/**/*"],

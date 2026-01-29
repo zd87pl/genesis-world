@@ -10,8 +10,8 @@
     "rootDir": "./src",
     "paths": {
       "@/*": ["./src/*"],
-      "@genesis/shared": ["../../packages/shared/src"],
-      "@genesis/shared/*": ["../../packages/shared/src/*"]
+      "@genesis/shared": ["../../packages/shared/dist"],
+      "@genesis/shared/*": ["../../packages/shared/dist/*"]
     }
   },
   "include": ["src/**/*"],
