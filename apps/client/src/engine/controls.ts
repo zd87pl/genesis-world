@@ -204,6 +204,12 @@ export class PlayerControls {
     return this._isLocked;
   }
 
+  unlock(): void {
+    if (this._isLocked) {
+      document.exitPointerLock();
+    }
+  }
+
   dispose(): void {
     document.removeEventListener('mousemove', this.onMouseMove.bind(this));
     document.removeEventListener('keydown', this.onKeyDown.bind(this));
